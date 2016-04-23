@@ -3,46 +3,6 @@
 
   <ImportGroup Label="PropertySheets"/>
 
-  <!-- Debug|Win32 -->
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-  </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(KINECTSDK20_DIR)\inc;$(OPENCV_DIR)\build\include;$(ProgramFiles)\Microsoft SDKs\Speech\v11.0\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories Condition="'$(PlatformToolset)'=='v110'">$(KINECTSDK20_DIR)\lib\x86;$(OPENCV_DIR)\build\x86\vc11\lib;$(ProgramFiles)\Microsoft SDKs\Speech\v11.0\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(PlatformToolset)'=='v120'">$(KINECTSDK20_DIR)\lib\x86;$(OPENCV_DIR)\build\x86\vc12\lib;$(ProgramFiles)\Microsoft SDKs\Speech\v11.0\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Kinect20.lib;Kinect20.Face.lib;Kinect20.Fusion.lib;Kinect20.VisualGestureBuilder.lib;opecv_world310d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command Condition="'$(ProjectName)'=='Face'">xcopy "$(KINECTSDK20_DIR)\Redist\Face\x86" "$(OutDir)" /e /y /i /r</Command>
-      <Command Condition="'$(ProjectName)'=='HDFace'">xcopy "$(KINECTSDK20_DIR)\Redist\Face\x86" "$(OutDir)" /e /y /i /r</Command>
-      <Command Condition="'$(ProjectName)'=='Fusion'">xcopy "$(KINECTSDK20_DIR)\Redist\Fusion\x86" "$(OutDir)" /e /y /i /r</Command>
-      <Command Condition="'$(ProjectName)'=='Gesture'">xcopy "$(KINECTSDK20_DIR)\Redist\VGB\x86" "$(OutDir)" /e /y /i /r &amp; if exist "$(ProjectDir)\*.gba" copy "$(ProjectDir)\*.gba" "$(OutDir)" /y</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-
-  <!-- Release|Win32 -->
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-  </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(KINECTSDK20_DIR)\inc;$(OPENCV_DIR)\build\include;$(ProgramFiles)\Microsoft SDKs\Speech\v11.0\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories Condition="'$(PlatformToolset)'=='v110'">$(KINECTSDK20_DIR)\lib\x86;$(OPENCV_DIR)\build\x86\vc11\lib;$(ProgramFiles)\Microsoft SDKs\Speech\v11.0\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalLibraryDirectories Condition="'$(PlatformToolset)'=='v120'">$(KINECTSDK20_DIR)\lib\x86;$(OPENCV_DIR)\build\x86\vc12\lib;$(ProgramFiles)\Microsoft SDKs\Speech\v11.0\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Kinect20.lib;Kinect20.Face.lib;Kinect20.Fusion.lib;Kinect20.VisualGestureBuilder.lib;opencv_world310.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command Condition="'$(ProjectName)'=='Face'">xcopy "$(KINECTSDK20_DIR)\Redist\Face\x86" "$(OutDir)" /e /y /i /r</Command>
-      <Command Condition="'$(ProjectName)'=='HDFace'">xcopy "$(KINECTSDK20_DIR)\Redist\Face\x86" "$(OutDir)" /e /y /i /r</Command>
-      <Command Condition="'$(ProjectName)'=='Fusion'">xcopy "$(KINECTSDK20_DIR)\Redist\Fusion\x86" "$(OutDir)" /e /y /i /r</Command>
-      <Command Condition="'$(ProjectName)'=='Gesture'">xcopy "$(KINECTSDK20_DIR)\Redist\VGB\x86" "$(OutDir)" /e /y /i /r &amp; if exist "$(ProjectDir)\*.gba" copy "$(ProjectDir)\*.gba" "$(OutDir)" /y</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-
   <!-- Debug|x64 -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
   </PropertyGroup>

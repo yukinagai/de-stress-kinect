@@ -1,19 +1,21 @@
-#include "link.h"
-#include <stdio.h>
 #include <tchar.h>
+#include <memory>
+#include <iostream> 
+#include <string>
+
 #include <SDKDDKVer.h>
 #include <Windows.h>
 #include <Kinect.h>
 #include <Kinect.VisualGestureBuilder.h>
 #include <Kinect.Face.h>
 #include <opencv2/opencv.hpp>
-#include <bitset>
-#include <string>
-/**************************HASHIMOTO****************************/
-#include <curl/curl.h>
-/**************************HASHIMOTO****************************/
-#include <memory>
-#include <iostream> 
+
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+#define MAIN_VERBOSE 1
+#include "link.h"
+#include "gestures.h"
 
 template<class Interface>
 inline void SafeRelease(Interface *& pInterfaceToRelease)
@@ -24,10 +26,29 @@ inline void SafeRelease(Interface *& pInterfaceToRelease)
 	}
 }
 
+// Quote from Kinect for Windows SDK v2.0 Developer Preview - Samples/Native/FaceBasics-D2D, and Partial Modification
+// ExtractFaceRotationInDegrees is: Copyright (c) Microsoft Corporation. All rights reserved.
+inline void ExtractFaceRotationInDegrees(const Vector4* pQuaternion, int* pPitch, int* pYaw, int* pRoll)
+{
+	double x = pQuaternion->x;
+	double y = pQuaternion->y;
+	double z = pQuaternion->z;
+	double w = pQuaternion->w;
+
+	// convert face rotation quaternion to Euler angles in degrees
+	*pPitch = static_cast<int>(std::atan2(2 * (y * z + w * x), w * w - x * x - y * y + z * z) / M_PI * 180.0f);
+	*pYaw = static_cast<int>(std::asin(2 * (w * y - x * z)) / M_PI * 180.0f);
+	*pRoll = static_cast<int>(std::atan2(2 * (x * y + w * z), w * w + x * x - y * y - z * z) / M_PI * 180.0f);
+}
 
 int _tmain(int argc, _TCHAR* argv[])
 {
 	cv::setUseOptimized(true);
+	dstrss::Gestures gesture("http://172.20.10.2:8001/");
+	if (!gesture.CurlIsInitialized())
+	{
+		return 1;
+	}
 
 	// Sensor
 	IKinectSensor* pSensor;
@@ -43,45 +64,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		std::cerr << "Error : IKinectSensor::Open()" << std::endl;
 		return -1;
 	}
-	
-	/**************************HASHIMOTO****************************/
-	//curl
-	//bool curlflag
-	int curlflag = 0;
-	CURL *curl;
-	CURLcode res;
-
-	if (curlflag == 0) {
-		curl = curl_easy_init();
-
-		if (curl == NULL) {
-			std::cerr << "curl_easy_init() failed" << std::endl;
-			return 1;
-		}
-
-		if (curl) {
-			// HAANANO's Web Server
-			curl_easy_setopt(curl, CURLOPT_URL, "http://157.7.242.70/face/detect/");
-
-			// use a GET to fetch this
-			curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-
-			std::string message = "{\TEST\"},";
-
-			int len = message.length();
-			std::shared_ptr<char> postthis(new char[len + 1]);
-			memcpy(postthis.get(), message.c_str(), len + 1);
-
-			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis.get());
-			curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(postthis.get()));
-			res = curl_easy_perform(curl);
-
-			if (res != CURLE_OK){
-				std::cerr << "curl_easy_perform() failed: " + std::string(curl_easy_strerror(res)) << std::endl;
-			}
-		}
-	}
-	/**************************HASHIMOTO****************************/
 
 	// Source
 	IColorFrameSource* pColorSource;
@@ -129,7 +111,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	cv::Mat bufferMat(height, width, CV_8UC4);
 	cv::Mat faceMat(height / 2, width / 2, CV_8UC4);
-	cv::namedWindow("HDFace");
+	cv::namedWindow("Face");
 
 	// Color Table
 	cv::Vec3b color[BODY_COUNT];
@@ -148,63 +130,45 @@ int _tmain(int argc, _TCHAR* argv[])
 		return -1;
 	}
 
-	IHighDefinitionFaceFrameSource* pHDFaceSource[BODY_COUNT];
-	IHighDefinitionFaceFrameReader* pHDFaceReader[BODY_COUNT];
-	IFaceModelBuilder* pFaceModelBuilder[BODY_COUNT];
-	bool produce[BODY_COUNT] = { false };
-	IFaceAlignment* pFaceAlignment[BODY_COUNT];
-	IFaceModel* pFaceModel[BODY_COUNT];
-	std::vector<std::vector<float>> deformations(BODY_COUNT, std::vector<float>(FaceShapeDeformations::FaceShapeDeformations_Count));
+	IFaceFrameSource* pFaceSource[BODY_COUNT];
+	DWORD features = FaceFrameFeatures::FaceFrameFeatures_BoundingBoxInColorSpace
+		| FaceFrameFeatures::FaceFrameFeatures_PointsInColorSpace
+		| FaceFrameFeatures::FaceFrameFeatures_RotationOrientation
+		| FaceFrameFeatures::FaceFrameFeatures_Happy
+		| FaceFrameFeatures::FaceFrameFeatures_RightEyeClosed
+		| FaceFrameFeatures::FaceFrameFeatures_LeftEyeClosed
+		| FaceFrameFeatures::FaceFrameFeatures_MouthOpen
+		| FaceFrameFeatures::FaceFrameFeatures_MouthMoved
+		| FaceFrameFeatures::FaceFrameFeatures_LookingAway
+		| FaceFrameFeatures::FaceFrameFeatures_Glasses
+		| FaceFrameFeatures::FaceFrameFeatures_FaceEngagement;
+	IFaceFrameReader* pFaceReader[BODY_COUNT];
 	for (int count = 0; count < BODY_COUNT; count++){
 		// Source
-		hResult = CreateHighDefinitionFaceFrameSource(pSensor, &pHDFaceSource[count]);
+		hResult = CreateFaceFrameSource(pSensor, 0, features, &pFaceSource[count]);
 		if (FAILED(hResult)){
-			std::cerr << "Error : CreateHighDefinitionFaceFrameSource()" << std::endl;
+			std::cerr << "Error : CreateFaceFrameSource" << std::endl;
 			return -1;
 		}
 
 		// Reader
-		hResult = pHDFaceSource[count]->OpenReader(&pHDFaceReader[count]);
+		hResult = pFaceSource[count]->OpenReader(&pFaceReader[count]);
 		if (FAILED(hResult)){
-			std::cerr << "Error : IHighDefinitionFaceFrameSource::OpenReader()" << std::endl;
-			return -1;
-		}
-
-		// Open Face Model Builder
-		hResult = pHDFaceSource[count]->OpenModelBuilder(FaceModelBuilderAttributes::FaceModelBuilderAttributes_None, &pFaceModelBuilder[count]);
-		if (FAILED(hResult)){
-			std::cerr << "Error : IHighDefinitionFaceFrameSource::OpenModelBuilder()" << std::endl;
-			return -1;
-		}
-
-		// Start Collection Face Data
-		hResult = pFaceModelBuilder[count]->BeginFaceDataCollection();
-		if (FAILED(hResult)){
-			std::cerr << "Error : IFaceModelBuilder::BeginFaceDataCollection()" << std::endl;
-			return -1;
-		}
-
-		// Create Face Alignment
-		hResult = CreateFaceAlignment(&pFaceAlignment[count]);
-		if (FAILED(hResult)){
-			std::cerr << "Error : CreateFaceAlignment()" << std::endl;
-			return -1;
-		}
-
-		// Create Face Model
-		hResult = CreateFaceModel(1.0f, FaceShapeDeformations::FaceShapeDeformations_Count, &deformations[count][0], &pFaceModel[count]);
-		if (FAILED(hResult)){
-			std::cerr << "Error : CreateFaceModel()" << std::endl;
+			std::cerr << "Error : IFaceFrameSource::OpenReader()" << std::endl;
 			return -1;
 		}
 	}
 
-	UINT32 vertex = 0;
-	hResult = GetFaceModelVertexCount(&vertex); // 1347
-	if (FAILED(hResult)){
-		std::cerr << "Error : GetFaceModelVertexCount()" << std::endl;
-		return -1;
-	}
+	// Face Property Table
+	std::string property[FaceProperty::FaceProperty_Count];
+	property[0] = "Happy";
+	property[1] = "Engaged";
+	property[2] = "WearingGlasses";
+	property[3] = "LeftEyeClosed";
+	property[4] = "RightEyeClosed";
+	property[5] = "MouthOpen";
+	property[6] = "MouthMoved";
+	property[7] = "LookingAway";
 
 	while (1){
 		// Color Frame
@@ -219,6 +183,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		SafeRelease(pColorFrame);
 
 		// Body Frame
+		cv::Point point[BODY_COUNT];
 		IBodyFrame* pBodyFrame = nullptr;
 		hResult = pBodyReader->AcquireLatestFrame(&pBodyFrame);
 		if (SUCCEEDED(hResult)){
@@ -226,33 +191,29 @@ int _tmain(int argc, _TCHAR* argv[])
 			hResult = pBodyFrame->GetAndRefreshBodyData(BODY_COUNT, pBody);
 			if (SUCCEEDED(hResult)){
 				for (int count = 0; count < BODY_COUNT; count++){
-					BOOLEAN bTrackingIdValid = false;
-					hResult = pHDFaceSource[count]->get_IsTrackingIdValid(&bTrackingIdValid);
-					if (!bTrackingIdValid){
-						BOOLEAN bTracked = false;
-						hResult = pBody[count]->get_IsTracked(&bTracked);
-						if (SUCCEEDED(hResult) && bTracked){
-							/*// Joint
-							Joint joint[JointType::JointType_Count];
-							hResult = pBody[count]->GetJoints( JointType::JointType_Count, joint );
-							if( SUCCEEDED( hResult ) ){
-							for( int type = 0; type < JointType::JointType_Count; type++ ){
-							ColorSpacePoint colorSpacePoint = { 0 };
-							pCoordinateMapper->MapCameraPointToColorSpace( joint[type].Position, &colorSpacePoint );
-							int x = static_cast<int>( colorSpacePoint.X );
-							int y = static_cast<int>( colorSpacePoint.Y );
-							if( ( x >= 0 ) && ( x < width ) && ( y >= 0 ) && ( y < height ) ){
-							cv::circle( bufferMat, cv::Point( x, y ), 5, static_cast<cv::Scalar>( color[count] ), -1, CV_AA );
-							}
-							}
-							}*/
+					BOOLEAN bTracked = false;
+					hResult = pBody[count]->get_IsTracked(&bTracked);
+					if (SUCCEEDED(hResult) && bTracked){
+						/*// Joint
+						Joint joint[JointType::JointType_Count];
+						hResult = pBody[count]->GetJoints( JointType::JointType_Count, joint );
+						if( SUCCEEDED( hResult ) ){
+						for( int type = 0; type < JointType::JointType_Count; type++ ){
+						ColorSpacePoint colorSpacePoint = { 0 };
+						pCoordinateMapper->MapCameraPointToColorSpace( joint[type].Position, &colorSpacePoint );
+						int x = static_cast<int>( colorSpacePoint.X );
+						int y = static_cast<int>( colorSpacePoint.Y );
+						if( ( x >= 0 ) && ( x < width ) && ( y >= 0 ) && ( y < height ) ){
+						cv::circle( bufferMat, cv::Point( x, y ), 5, static_cast<cv::Scalar>( color[count] ), -1, CV_AA );
+						}
+						}
+						}*/
 
-							// Set TrackingID to Detect Face
-							UINT64 trackingId = _UI64_MAX;
-							hResult = pBody[count]->get_TrackingId(&trackingId);
-							if (SUCCEEDED(hResult)){
-								pHDFaceSource[count]->put_TrackingId(trackingId);
-							}
+						// Set TrackingID to Detect Face
+						UINT64 trackingId = _UI64_MAX;
+						hResult = pBody[count]->get_TrackingId(&trackingId);
+						if (SUCCEEDED(hResult)){
+							pFaceSource[count]->put_TrackingId(trackingId);
 						}
 					}
 				}
@@ -263,102 +224,94 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		SafeRelease(pBodyFrame);
 
-		// HD Face Frame
+		// Face Frame
+		std::system("cls");
 		for (int count = 0; count < BODY_COUNT; count++){
-			IHighDefinitionFaceFrame* pHDFaceFrame = nullptr;
-			hResult = pHDFaceReader[count]->AcquireLatestFrame(&pHDFaceFrame);
-			if (SUCCEEDED(hResult) && pHDFaceFrame != nullptr){
+			IFaceFrame* pFaceFrame = nullptr;
+			hResult = pFaceReader[count]->AcquireLatestFrame(&pFaceFrame);
+			if (SUCCEEDED(hResult) && pFaceFrame != nullptr){
 				BOOLEAN bFaceTracked = false;
-				hResult = pHDFaceFrame->get_IsFaceTracked(&bFaceTracked);
+				hResult = pFaceFrame->get_IsTrackingIdValid(&bFaceTracked);
 				if (SUCCEEDED(hResult) && bFaceTracked){
-					hResult = pHDFaceFrame->GetAndRefreshFaceAlignmentResult(pFaceAlignment[count]);
-					if (SUCCEEDED(hResult) && pFaceAlignment[count] != nullptr){
-						// Face Model Building
-						if (!produce[count]){
-							std::system("cls");
-							FaceModelBuilderCollectionStatus collection;
-							hResult = pFaceModelBuilder[count]->get_CollectionStatus(&collection);
-							if (collection == FaceModelBuilderCollectionStatus::FaceModelBuilderCollectionStatus_Complete){
-								std::cout << "Status : Complete" << std::endl;
-								cv::putText(bufferMat, "Status : Complete", cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
-								IFaceModelData* pFaceModelData = nullptr;
-								hResult = pFaceModelBuilder[count]->GetFaceData(&pFaceModelData);
-								if (SUCCEEDED(hResult) && pFaceModelData != nullptr){
-									hResult = pFaceModelData->ProduceFaceModel(&pFaceModel[count]);
-									if (SUCCEEDED(hResult) && pFaceModel[count] != nullptr){
-										produce[count] = true;
-									}
-								}
-								SafeRelease(pFaceModelData);
-							}
-							else{
-								std::cout << "Status : " << collection << std::endl;
-								cv::putText(bufferMat, "Status : " + std::to_string(collection), cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
+					IFaceFrameResult* pFaceResult = nullptr;
+					hResult = pFaceFrame->get_FaceFrameResult(&pFaceResult);
+					if (SUCCEEDED(hResult) && pFaceResult != nullptr){
+						std::vector<std::string> result;
 
-								// Collection Status
-								if (collection >= FaceModelBuilderCollectionStatus::FaceModelBuilderCollectionStatus_TiltedUpViewsNeeded){
-									std::cout << "Need : Tilted Up Views" << std::endl;
-									cv::putText(bufferMat, "Need : Tilted Up Views", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
-								}
-								else if (collection >= FaceModelBuilderCollectionStatus::FaceModelBuilderCollectionStatus_RightViewsNeeded){
-									std::cout << "Need : Right Views" << std::endl;
-									cv::putText(bufferMat, "Need : Right Views", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
-								}
-								else if (collection >= FaceModelBuilderCollectionStatus::FaceModelBuilderCollectionStatus_LeftViewsNeeded){
-									std::cout << "Need : Left Views" << std::endl;
-									cv::putText(bufferMat, "Need : Left Views", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
-								}
-								else if (collection >= FaceModelBuilderCollectionStatus::FaceModelBuilderCollectionStatus_FrontViewFramesNeeded){
-									std::cout << "Need : Front ViewFrames" << std::endl;
-									cv::putText(bufferMat, "Need : Front ViewFrames", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
-								}
+						// Face Point
+						PointF facePoint[FacePointType::FacePointType_Count];
+						hResult = pFaceResult->GetFacePointsInColorSpace(FacePointType::FacePointType_Count, facePoint);
+						if (SUCCEEDED(hResult)){
+							cv::circle(bufferMat, cv::Point(static_cast<int>(facePoint[0].X), static_cast<int>(facePoint[0].Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA); // Eye (Left)
+							cv::circle(bufferMat, cv::Point(static_cast<int>(facePoint[1].X), static_cast<int>(facePoint[1].Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA); // Eye (Right)
+							cv::circle(bufferMat, cv::Point(static_cast<int>(facePoint[2].X), static_cast<int>(facePoint[2].Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA); // Nose
+							cv::circle(bufferMat, cv::Point(static_cast<int>(facePoint[3].X), static_cast<int>(facePoint[3].Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA); // Mouth (Left)
+							cv::circle(bufferMat, cv::Point(static_cast<int>(facePoint[4].X), static_cast<int>(facePoint[4].Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA); // Mouth (Right)
+						}
 
-								// Capture Status
-								FaceModelBuilderCaptureStatus capture;
-								hResult = pFaceModelBuilder[count]->get_CaptureStatus(&capture);
-								switch (capture){
-								case FaceModelBuilderCaptureStatus::FaceModelBuilderCaptureStatus_FaceTooFar:
-									std::cout << "Error : Face Too Far from Camera" << std::endl;
-									cv::putText(bufferMat, "Error : Face Too Far from Camera", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
+						// Face Bounding Box
+						RectI boundingBox;
+						hResult = pFaceResult->get_FaceBoundingBoxInColorSpace(&boundingBox);
+						if (SUCCEEDED(hResult)){
+							cv::rectangle(bufferMat, cv::Rect(boundingBox.Left, boundingBox.Top, boundingBox.Right - boundingBox.Left, boundingBox.Bottom - boundingBox.Top), static_cast<cv::Scalar>(color[count]));
+						}
+
+						// Face Rotation
+						Vector4 faceRotation;
+						hResult = pFaceResult->get_FaceRotationQuaternion(&faceRotation);
+						if (SUCCEEDED(hResult)){
+							int pitch, yaw, roll;
+							ExtractFaceRotationInDegrees(&faceRotation, &pitch, &yaw, &roll);
+
+							gesture.GestureEventArise(gesture.EstimageGesture(pitch, yaw, roll));
+
+							result.push_back("Pitch, Yaw, Roll : " + std::to_string(pitch) + ", " + std::to_string(yaw) + ", " + std::to_string(roll));
+						}
+
+						// Face Property
+						DetectionResult faceProperty[FaceProperty::FaceProperty_Count];
+						hResult = pFaceResult->GetFaceProperties(FaceProperty::FaceProperty_Count, faceProperty);
+						if (SUCCEEDED(hResult)){
+							for (int count = 0; count < FaceProperty::FaceProperty_Count; count++){
+								switch (faceProperty[count]){
+								case DetectionResult::DetectionResult_Unknown:
+									result.push_back(property[count] + " : Unknown");
 									break;
-								case FaceModelBuilderCaptureStatus::FaceModelBuilderCaptureStatus_FaceTooNear:
-									std::cout << "Error : Face Too Near to Camera" << std::endl;
-									cv::putText(bufferMat, "Error : Face Too Near to Camera", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
+								case DetectionResult::DetectionResult_Yes:
+									result.push_back(property[count] + " : Yes");
 									break;
-								case FaceModelBuilderCaptureStatus_MovingTooFast:
-									std::cout << "Error : Moving Too Fast" << std::endl;
-									cv::putText(bufferMat, "Error : Moving Too Fast", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
+								case DetectionResult::DetectionResult_No:
+									result.push_back(property[count] + " : No");
+									break;
+								case DetectionResult::DetectionResult_Maybe:
+									result.push_back(property[count] + " : Mayby");
 									break;
 								default:
 									break;
 								}
-							}
-						}
-
-						// HD Face Points
-						std::vector<CameraSpacePoint> facePoints(vertex);
-						hResult = pFaceModel[count]->CalculateVerticesForAlignment(pFaceAlignment[count], vertex, &facePoints[0]);
-						if (SUCCEEDED(hResult)){
-							for (int point = 0; point < vertex; point++){
-								ColorSpacePoint colorSpacePoint;
-								hResult = pCoordinateMapper->MapCameraPointToColorSpace(facePoints[point], &colorSpacePoint);
-								if (SUCCEEDED(hResult)){
-									int x = static_cast<int>(colorSpacePoint.X);
-									int y = static_cast<int>(colorSpacePoint.Y);
-									if ((x >= 0) && (x < width) && (y >= 0) && (y < height)){
-										cv::circle(bufferMat, cv::Point(static_cast<int>(colorSpacePoint.X), static_cast<int>(colorSpacePoint.Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA);
-									}
+								if (count == 5 && faceProperty[count] == DetectionResult::DetectionResult_Yes)
+								{
+									// MouthOpen
+									gesture.GestureEventArise(dstrss::GESTURE_PROPERTY::MOUTH_OPEN);
 								}
 							}
 						}
+
+						if (boundingBox.Left && boundingBox.Bottom){
+							int offset = 30;
+							for (std::vector<std::string>::iterator it = result.begin(); it != result.end(); it++, offset += 30){
+								cv::putText(bufferMat, *it, cv::Point(boundingBox.Left, boundingBox.Bottom + offset), cv::FONT_HERSHEY_COMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]),  2, CV_AA);
+							}
+						}
 					}
+					SafeRelease(pFaceResult);
 				}
 			}
-			SafeRelease(pHDFaceFrame);
+			SafeRelease(pFaceFrame);
 		}
 
 		cv::resize(bufferMat, faceMat, cv::Size(), 0.5, 0.5);
-		cv::imshow("HDFace", faceMat);
+		cv::imshow("Face", faceMat);
 
 		if (cv::waitKey(10) == VK_ESCAPE){
 			break;
@@ -372,20 +325,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	SafeRelease(pDescription);
 	SafeRelease(pCoordinateMapper);
 	for (int count = 0; count < BODY_COUNT; count++){
-		SafeRelease(pHDFaceSource[count]);
-		SafeRelease(pHDFaceReader[count]);
-		SafeRelease(pFaceModelBuilder[count]);
-		SafeRelease(pFaceAlignment[count]);
-		SafeRelease(pFaceModel[count]);
+		SafeRelease(pFaceSource[count]);
+		SafeRelease(pFaceReader[count]);
 	}
 	if (pSensor){
 		pSensor->Close();
 	}
 	SafeRelease(pSensor);
 	cv::destroyAllWindows();
-
-	// clearnup curl
-	curl_easy_cleanup(curl);
 
 	return 0;
 }
