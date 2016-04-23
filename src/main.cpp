@@ -1,4 +1,4 @@
-#include "link_opencv.h"
+#include "link.h"
 #include <stdio.h>
 #include <tchar.h>
 #include <SDKDDKVer.h>
@@ -8,7 +8,9 @@
 #include <Kinect.Face.h>
 #include <opencv2/opencv.hpp>
 #include <bitset>
-
+#include <string>
+#include <curl/curl.h>
+#include <memory>
 
 template<class Interface>
 inline void SafeRelease(Interface *& pInterfaceToRelease)
@@ -18,6 +20,7 @@ inline void SafeRelease(Interface *& pInterfaceToRelease)
 		pInterfaceToRelease = NULL;
 	}
 }
+
 
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -36,6 +39,34 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (FAILED(hResult)){
 		std::cerr << "Error : IKinectSensor::Open()" << std::endl;
 		return -1;
+	}
+
+	//curl
+	//bool curlflag
+	int curlflag = 0;
+	CURL *curl;
+	CURLcode res;
+
+	if (curlflag == 0) {
+		curl = curl_easy_init();
+
+		if (curl) {
+			//curl_easy_setopt(curl, CURLOPT_PROXY, "XXX.XXX.XXX.XXX:XXXX");
+			//curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD, "username:password");
+			curl_easy_setopt(curl, CURLOPT_URL, "http://157.7.242.70/face/detect/");
+			curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+			std::string message = "{\FACE_DITECT\"},";
+
+			int len = message.length();
+			std::shared_ptr<char> postthis(new char[len + 1]);
+			memcpy(postthis.get(), message.c_str(), len + 1);
+
+			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis.get());
+			curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(postthis.get()));
+			res = curl_easy_perform(curl);
+			std::cout << res << std::endl;
+		}
 	}
 
 	// Source
@@ -303,6 +334,13 @@ int _tmain(int argc, _TCHAR* argv[])
 									if ((x >= 0) && (x < width) && (y >= 0) && (y < height)){
 										cv::circle(bufferMat, cv::Point(static_cast<int>(colorSpacePoint.X), static_cast<int>(colorSpacePoint.Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA);
 									}
+
+									//if (curl) {
+									//	std::string message =   "{\FACE_DITECT\"},";
+									//	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, message);
+									//	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(message.c_str()));
+									//	res = curl_easy_perform(curl);
+									//}
 								}
 							}
 						}

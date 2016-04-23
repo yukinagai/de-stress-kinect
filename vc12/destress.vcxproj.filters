@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\link_opencv.h">
+    <ClInclude Include="..\src\link.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
