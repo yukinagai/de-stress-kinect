@@ -9,8 +9,11 @@
 #include <opencv2/opencv.hpp>
 #include <bitset>
 #include <string>
+/**************************HASHIMOTO****************************/
 #include <curl/curl.h>
+/**************************HASHIMOTO****************************/
 #include <memory>
+#include <iostream> 
 
 template<class Interface>
 inline void SafeRelease(Interface *& pInterfaceToRelease)
@@ -40,7 +43,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		std::cerr << "Error : IKinectSensor::Open()" << std::endl;
 		return -1;
 	}
-
+	
+	/**************************HASHIMOTO****************************/
 	//curl
 	//bool curlflag
 	int curlflag = 0;
@@ -50,13 +54,19 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (curlflag == 0) {
 		curl = curl_easy_init();
 
-		if (curl) {
-			//curl_easy_setopt(curl, CURLOPT_PROXY, "XXX.XXX.XXX.XXX:XXXX");
-			//curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD, "username:password");
-			curl_easy_setopt(curl, CURLOPT_URL, "http://157.7.242.70/face/detect/");
-			curl_easy_setopt(curl, CURLOPT_POST, 1L);
+		if (curl == NULL) {
+			std::cerr << "curl_easy_init() failed" << std::endl;
+			return 1;
+		}
 
-			std::string message = "{\FACE_DITECT\"},";
+		if (curl) {
+			// HAANANO's Web Server
+			curl_easy_setopt(curl, CURLOPT_URL, "http://157.7.242.70/face/detect/");
+
+			// use a GET to fetch this
+			curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+
+			std::string message = "{\TEST\"},";
 
 			int len = message.length();
 			std::shared_ptr<char> postthis(new char[len + 1]);
@@ -65,9 +75,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis.get());
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(postthis.get()));
 			res = curl_easy_perform(curl);
-			std::cout << res << std::endl;
+
+			if (res != CURLE_OK){
+				std::cerr << "curl_easy_perform() failed: " + std::string(curl_easy_strerror(res)) << std::endl;
+			}
 		}
 	}
+	/**************************HASHIMOTO****************************/
 
 	// Source
 	IColorFrameSource* pColorSource;
@@ -334,13 +348,6 @@ int _tmain(int argc, _TCHAR* argv[])
 									if ((x >= 0) && (x < width) && (y >= 0) && (y < height)){
 										cv::circle(bufferMat, cv::Point(static_cast<int>(colorSpacePoint.X), static_cast<int>(colorSpacePoint.Y)), 5, static_cast<cv::Scalar>(color[count]), -1, CV_AA);
 									}
-
-									//if (curl) {
-									//	std::string message =   "{\FACE_DITECT\"},";
-									//	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, message);
-									//	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(message.c_str()));
-									//	res = curl_easy_perform(curl);
-									//}
 								}
 							}
 						}
@@ -376,6 +383,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	SafeRelease(pSensor);
 	cv::destroyAllWindows();
+
+	// clearnup curl
+	curl_easy_cleanup(curl);
 
 	return 0;
 }
