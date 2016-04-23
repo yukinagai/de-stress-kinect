@@ -10,15 +10,17 @@ namespace dstrss
 
 	enum GESTURE_PROPERTY
 	{
-		FACE_TURN_RIGHT,
-		FACE_TURN_LEFT,
-		FACE_TURN_UP,
-		FACE_TURN_DOWN,
-		FACE_TILT_RIGHT,
-		FACE_TILT_LEFT,
-		MOUTH_OPEN,
-		HAPPY,
-		NONE
+		FACE_TURN_RIGHT = 1,
+		FACE_TURN_LEFT = 2,
+		FACE_TURN_UP = -3,
+		FACE_TURN_DOWN = -4,
+		FACE_TILT_RIGHT = -5,
+		FACE_TILT_LEFT = 6,
+		MOUTH_OPEN = 7,
+		HAPPY = -8,
+		RIGHT_EYE_CLOSED = -9,
+		LEFT_EYE_CLOSED = -10,
+		NONE = -11
 	};
 
 	enum GESTURE_EVENT
@@ -31,24 +33,38 @@ namespace dstrss
 		STAY
 	};
 
+	enum PAGE
+	{
+		FAN,
+		TEMPERATURE,
+		INIT
+	};
+
+	std::string GesturePropertyToString(const GESTURE_PROPERTY property);
+
+	std::string GestureEventToString(const GESTURE_EVENT event);
+
+	std::string PageToString(const PAGE event);
+
 	class State
 	{
+	private:
+		unsigned time_count_;
+		GESTURE_PROPERTY prev_property_;
+		const unsigned transition_threshold_;
+		bool update_time_count(const GESTURE_PROPERTY property);
+
 	public:
-		State() : FanVal(0), TempVal(0), TimeCount(0), Page(INIT) {};
+		State() : FanVal(0), TempVal(0), Page(INIT), time_count_(0),
+			prev_property_(GESTURE_PROPERTY::NONE), transition_threshold_(5) {};
 		~State(){};
 
 		GESTURE_EVENT ChangeState(const GESTURE_PROPERTY property);
-
-		enum PAGE
-		{
-			FAN,
-			TEMPERATURE,
-			INIT
-		};
+		unsigned get_time_count(){ return time_count_; };
 
 		int FanVal;
 		int TempVal;
-		unsigned TimeCount;
+
 		PAGE Page;
 	};
 
@@ -56,7 +72,7 @@ namespace dstrss
 	{
 	private:
 		std::string url_;
-		int threshold_;
+		const int threshold_;
 		std::shared_ptr<CURL> curl_;
 		bool curl_initialized_;
 		State state_;

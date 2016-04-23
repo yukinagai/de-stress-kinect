@@ -2,6 +2,7 @@
 #include <memory>
 #include <iostream> 
 #include <string>
+#include <chrono>
 
 #include <SDKDDKVer.h>
 #include <Windows.h>
@@ -170,7 +171,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	property[6] = "MouthMoved";
 	property[7] = "LookingAway";
 
-	while (1){
+	while (true){
 		// Color Frame
 		IColorFrame* pColorFrame = nullptr;
 		hResult = pColorReader->AcquireLatestFrame(&pColorFrame);
