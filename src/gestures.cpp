@@ -6,14 +6,14 @@ namespace dstrss
 	bool State::update_time_count(const GESTURE_PROPERTY property)
 	{
 		bool state_transition_flag = false;
-		if (0 < this->prev_property_)
+		if (0 < property)
 		{
 			if (this->prev_property_ == property)
 			{
 				if (this->transition_threshold_ < this->time_count_)
 				{
 					state_transition_flag = true;
-					this->time_count_ = 0;
+					this->time_count_ = 1;
 				}
 				else{
 					this->time_count_++;
@@ -21,7 +21,7 @@ namespace dstrss
 			}
 			else
 			{
-				this->time_count_ = 0;
+				this->time_count_ = 1;
 			}
 			this->prev_property_ = property;
 		}
@@ -30,7 +30,7 @@ namespace dstrss
 
 	GESTURE_EVENT State::ChangeState(const GESTURE_PROPERTY property)
 	{
-		std::cout << "PAGE: " << PageToString(this->Page) << std::endl;
+		std::cout << "PAGE: " << PageToString(this->Page) << "  " << FanVal << std::endl;
 
 		GESTURE_EVENT event = GESTURE_EVENT::STAY;
 		if (this->update_time_count(property))
@@ -204,7 +204,7 @@ namespace dstrss
 
 	bool Gestures::GestureEventArise(const GESTURE_EVENT event)
 	{
-		std::cout << "Event: " << GestureEventToString(event) << state_.get_time_count() << std::endl;
+		std::cout << "Event: " << GestureEventToString(event) << "     coutnt =" << state_.get_time_count()  << std::endl;
 		std::string message = "";
 		bool flag;
 		switch (event)

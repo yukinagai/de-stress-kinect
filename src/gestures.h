@@ -56,7 +56,8 @@ namespace dstrss
 
 	public:
 		State() : FanVal(0), TempVal(0), Page(INIT), time_count_(0),
-			prev_property_(GESTURE_PROPERTY::NONE), transition_threshold_(5) {};
+			//prev_property_(GESTURE_PROPERTY::NONE), transition_threshold_(5) {};
+			prev_property_(GESTURE_PROPERTY::NONE), transition_threshold_(3) {};
 		~State(){};
 
 		GESTURE_EVENT ChangeState(const GESTURE_PROPERTY property);
@@ -66,6 +67,8 @@ namespace dstrss
 		int TempVal;
 
 		PAGE Page;
+		
+
 	};
 
 	class Gestures
